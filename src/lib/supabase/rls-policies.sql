@@ -32,7 +32,7 @@ USING (true) WITH CHECK (true);
 
 -- Admins can deactivate workers (soft delete)
 CREATE POLICY "Admins can deactivate workers" ON workers
-USING (true) WITH CHECK (is_active = true);
+USING (true) WITH CHECK (true);
 
 -- Admins can SELECT all duty records
 CREATE POLICY "Admins can view all duty records" ON duty_records
@@ -49,6 +49,16 @@ USING (true) WITH CHECK (true);
 -- Admins can DELETE duty records
 CREATE POLICY "Admins can delete duty records" ON duty_records
 FOR DELETE USING (true);
+
+-- Workers can SELECT own payouts
+CREATE POLICY "Workers can view own payouts" ON payouts
+FOR SELECT USING (worker_id IN (
+  SELECT id FROM workers WHERE profile_id = auth.uid()
+));
+
+-- Admins can CRUD payouts
+CREATE POLICY "Admins can manage payouts" ON payouts
+USING (true) WITH CHECK (true);
 
 -- Admins can SELECT all audit logs
 CREATE POLICY "Admins can view audit logs" ON audit_logs

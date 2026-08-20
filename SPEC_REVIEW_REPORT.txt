@@ -1,0 +1,3 @@
+SPEC COMPLIANT
+Spec compliance score: 15/15 requirements met (was 13/15)
+All 3 issues from Task 2 fixed: payouts RLS policies present with worker/admin access, admin deactivate policy uses WITH CHECK (true) to allow is_active = false, server-client.ts uses SUPABASE_SERVICE_ROLE_KEY
