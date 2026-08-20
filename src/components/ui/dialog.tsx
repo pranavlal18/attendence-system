@@ -1,100 +1,59 @@
 "use client";
 
 import * as React from "react";
-import { Slot } from "@radix-ui/react-dialog";
-import { cn } from "@/lib/utils";
 
 export interface DialogProps {
-  asChild?: boolean;
+  className?: string;
+  children: React.ReactNode;
 }
 
-const Dialog = React.forwardRef<HTMLDialogElement, DialogProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const Dialog = ({ className, children, ...rest }: DialogProps) => {
   return (
-    <Comp className={cn("modal")} {...props}>
+    <dialog className={className} {...rest}>
       {children}
-    </Comp>
+    </dialog>
   );
-});
+};
 
 Dialog.displayName = "Dialog";
 
-export { Dialog };
-
 export interface DialogTriggerProps extends React.HTMLAttributes<HTMLButtonElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const DialogTrigger = ({ className, children, ...rest }: DialogTriggerProps) => {
   return (
-    <Comp className={cn("btn btn-ghost icon-bottom")} {...props}>
+    <button className={className} {...rest}>
       {children}
-    </Comp>
+    </button>
   );
-});
+};
 
 DialogTrigger.displayName = "DialogTrigger";
 
-export { DialogTrigger };
-
-export interface DialogContentProps extends React.HTMLAttributes<HTMLDialogElement> {
-  asChild?: boolean;
+export interface DialogContentProps {
+  className?: string;
+  children: React.ReactNode;
 }
 
-const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>({
-  openClassName,
-  closedClassName,
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const DialogContent = ({ className, children, ...rest }: DialogContentProps) => {
   return (
-    <Comp
-      openClassName={openClassName}
-      closedClassName={closedClassName}
-      className={cn(
-        "fixed bottom-0 left-0 right-0 max-w-lg p-4 bd-yellow bd bd-solid bd-rounded-md",
-        "from-transparent via-white/10 to-transparent",
-        "pb-8",
-      )}
-      {...props}
-    >
+    <dialog className={className} {...rest}>
       {children}
-    </Comp>
+    </dialog>
   );
-});
+};
 
 DialogContent.displayName = "DialogContent";
 
-export { DialogContent };
-
 export interface DialogFooterProps extends React.HTMLAttributes<HTMLDivElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const DialogFooter = React.forwardRef<HTMLDivElement, DialogFooterProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
-  return (
-    <Comp className={cn("flex justify-end space-x-2 pt-2")} {...props}>
-      {children}
-    </Comp>
-  );
-});
+const DialogFooter = ({ className, children, ...rest }: DialogFooterProps) => {
+  return <div className={className} {...rest}>{children}</div>;
+};
 
 DialogFooter.displayName = "DialogFooter";
 
-export { DialogFooter };
+export { DialogTrigger, DialogContent, DialogFooter };

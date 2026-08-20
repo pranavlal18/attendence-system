@@ -1,110 +1,71 @@
 "use client";
 
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
-import { cn } from "@/lib/utils";
 
 export interface SelectTriggerProps extends React.HTMLAttributes<HTMLDivElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const SelectTrigger = React.forwardRef<HTMLDivElement, SelectTriggerProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const SelectTrigger = ({ className, children, ...rest }: SelectTriggerProps) => {
   return (
-    <Comp className={cn("relative flex cursor-default select-none items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&>span]:pointer-events-none [>span]:flex [>span]:items-center [>span]:rounded-md [>span]:bg-muted [>span]:text-muted-foreground")} {...props}>
+    <div className={className} {...rest}>
       {children}
-    </Comp>
+    </div>
   );
-});
+};
 
 SelectTrigger.displayName = "SelectTrigger";
 
-export { SelectTrigger };
-
 export interface SelectValueProps extends React.HTMLAttributes<HTMLSpanElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const SelectValue = React.forwardRef<HTMLSpanElement, SelectValueProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const SelectValue = ({ className, children, ...rest }: SelectValueProps) => {
   return (
-    <Comp className={cn("flex items-center rounded-md bg-background px-3 py-2 text-sm")} {...props}>
+    <span className={className} {...rest}>
       {children}
-    </Comp>
+    </span>
   );
-});
+};
 
 SelectValue.displayName = "SelectValue";
 
-export { SelectValue };
-
 export interface SelectContentProps extends React.HTMLAttributes<HTMLDivElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const SelectContent = React.forwardRef<HTMLDivElement, SelectContentProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const SelectContent = ({ className, children, ...rest }: SelectContentProps) => {
   return (
-    <Comp className={cn("z-50 rounded-md bg-popover p-2 text-sm shadow-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=open]:invisible data-[state=closed]:visible fade-in")} {...props}>
+    <div className={className} {...rest}>
       {children}
-    </Comp>
+    </div>
   );
-});
+};
 
 SelectContent.displayName = "SelectContent";
 
-export { SelectContent };
-
 export interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
+const SelectItem = ({ className, children, ...rest }: SelectItemProps) => {
   return (
-    <Comp className={cn("relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none focus-data-[state=selected]:bg-primary data-[state=selected]:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:pointer-events-none [&>span]:flex [&>span]:items-center [&>span]:rounded-md [&>span]:bg-muted [&>span]:text-muted-foreground")} {...props}>
+    <div className={className} {...rest}>
       {children}
-    </Comp>
+    </div>
   );
-});
+};
 
 SelectItem.displayName = "SelectItem";
 
-export { SelectItem };
-
 export interface SelectSeparatorProps extends React.HTMLAttributes<HTMLDivElement> {
-  asChild?: boolean;
+  children: React.ReactNode;
 }
 
-const SelectSeparator = React.forwardRef<HTMLDivElement, SelectSeparatorProps>({
-  className,
-  children,
-  ...props,
-}) => {
-  const Comp = Slot;
-  return (
-    <Comp className={cn("h-px my-0 mx-2 bg-muted")} {...props}>
-      {children}
-    </Comp>
-  );
-});
+const SelectSeparator = ({ className, children, ...rest }: SelectSeparatorProps) => {
+  return <div className={className} {...rest} />;
+};
 
 SelectSeparator.displayName = "SelectSeparator";
 
-export { SelectSeparator };
+export { SelectTrigger, SelectValue, SelectContent, SelectItem, SelectSeparator };
