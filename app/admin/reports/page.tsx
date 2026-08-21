@@ -10,6 +10,7 @@ import {
 import { WorkerSummaryTable } from "@/components/reports/worker-summary-table";
 import { MonthSelector } from "@/components/reports/month-selector";
 import { PayoutForm } from "@/components/reports/payout-form";
+import { PrintAttendanceSheet } from "@/components/reports/print-attendance-sheet";
 import { AdminNav } from "@/components/admin-nav";
 
 export default function ReportsPage() {
@@ -101,18 +102,22 @@ export default function ReportsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-      <AdminNav />
-      <div>
+      <div className="print:hidden">
+        <AdminNav />
+      </div>
+      <div className="print:hidden">
         <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Monthly Reports</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           Worker monthly Full/Half/Total + earnings (historical rate_applied)
         </p>
       </div>
 
-      <MonthSelector value={monthYear} onChange={setMonthYear} />
+      <div className="print:hidden">
+        <MonthSelector value={monthYear} onChange={setMonthYear} />
+      </div>
 
       {loading ? (
-        <div className="space-y-4">
+        <div className="space-y-4 print:hidden">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -127,7 +132,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 print:hidden md:grid-cols-4">
             <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
               <p className="text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Full Duties</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{totals.fullCount}</p>
@@ -146,13 +151,17 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <WorkerSummaryTable summaries={summaries} totals={totals} getStatus={getStatus} onPayout={handlePayoutClick} />
+          <div className="print:hidden">
+            <WorkerSummaryTable summaries={summaries} totals={totals} getStatus={getStatus} onPayout={handlePayoutClick} />
+          </div>
         </>
       )}
 
+      <PrintAttendanceSheet monthYear={monthYear} />
+
       {payoutModal?.open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
           onClick={() => setPayoutModal(null)}
           role="presentation"
         >
