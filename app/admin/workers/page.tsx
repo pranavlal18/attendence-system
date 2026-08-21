@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { WorkerCreateModal } from '@/features/workers/create-modal';
 import { WorkerEditModal } from '@/features/workers/edit-modal';
 import { AdminNav } from '@/components/admin-nav';
+import { AdminGuard } from '@/components/admin-guard';
 
 type Worker = {
   id: string;
@@ -183,9 +184,10 @@ export default function AdminWorkersPage() {
   const visibleWorkers = showDeactivated ? workers : workers.filter((w) => w.is_active);
 
   return (
-    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-4 sm:p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <AdminNav />
+    <AdminGuard>
+      <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-4 sm:p-6">
+        <div className="mx-auto max-w-6xl space-y-6">
+          <AdminNav />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
             Worker Management
@@ -331,7 +333,8 @@ export default function AdminWorkersPage() {
             </table>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </AdminGuard>
   );
 }

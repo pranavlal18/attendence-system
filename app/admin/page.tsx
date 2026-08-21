@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { fetchAttendance, type AttendanceRecord } from "@/services/attendance-service";
 import { AdminNav } from "@/components/admin-nav";
+import { AdminGuard } from "@/components/admin-guard";
 import Link from "next/link";
 
 type DashboardFilters = { date?: string; month?: string };
@@ -64,9 +65,10 @@ export default function AdminDashboard() {
   const periodLabel = filters.date ? filters.date : filters.month ? `${filters.month}` : "All time";
 
   return (
-    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-4 sm:p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <AdminNav />
+    <AdminGuard>
+      <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-4 sm:p-6">
+        <div className="mx-auto max-w-6xl space-y-6">
+          <AdminNav />
 
         <header className="flex items-start justify-between gap-4">
           <div>
@@ -157,8 +159,9 @@ export default function AdminDashboard() {
             </div>
           </>
         )}
+        </div>
       </div>
-    </div>
+    </AdminGuard>
   );
 }
 
