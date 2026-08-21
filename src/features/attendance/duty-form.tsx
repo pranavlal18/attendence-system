@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { WORKER_MAX_FULL as FULL_MAX, WORKER_MAX_HALF as HALF_MAX } from "../../constants/duty-types";
+import {
+  FULL_UNITS,
+  HALF_UNITS,
+  DAILY_TEAM_BUDGET,
+  WORKER_MAX_FULL,
+  WORKER_MAX_HALF,
+} from "../../constants/duty-types";
 import { format } from "date-fns";
 import { logAction } from "@/lib/audit-logger";
 
@@ -23,6 +29,7 @@ interface DutyFormProps {
 
 export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
   const [duties, setDuties] = useState<DutyRecord[]>([]);
+  const [teamUsedUnits, setTeamUsedUnits] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<"FULL" | "HALF" | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -45,6 +52,17 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
       } else {
         setDuties((data ?? []) as DutyRecord[]);
       }
+
+      const { data: teamRows } = await supabase
+        .from("duty_records")
+        .select("duty_type")
+        .eq("date", selectedDate);
+      const used = (teamRows ?? []).reduce(
+        (acc: number, r: { duty_type: string }) =>
+          acc + (r.duty_type === "FULL" ? FULL_UNITS : HALF_UNITS),
+        0
+      );
+      setTeamUsedUnits(used);
     } catch (err) {
       setMessage({
         type: "error",
@@ -61,32 +79,16 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workerId, selectedDate]);
 
-  const existingType = duties[0]?.duty_type as "FULL" | "HALF" | undefined;
   const fullCount = duties.filter((d) => d.duty_type === "FULL").length;
   const halfCount = duties.filter((d) => d.duty_type === "HALF").length;
-  const isFullDisabled = existingType === "HALF" || fullCount >= FULL_MAX;
-  const isHalfDisabled = existingType === "FULL" || halfCount >= HALF_MAX;
+  const remainingUnits = Math.max(0, DAILY_TEAM_BUDGET - teamUsedUnits);
+  const isFullDisabled =
+    fullCount >= WORKER_MAX_FULL || remainingUnits < FULL_UNITS;
+  const isHalfDisabled =
+    halfCount >= WORKER_MAX_HALF || remainingUnits < HALF_UNITS;
 
   const handleAddDuty = async (dutyType: "FULL" | "HALF") => {
     setMessage(null);
-
-    // inline canRecord logic before insert
-    if (dutyType === "FULL" && isFullDisabled) {
-      if (existingType === "HALF") {
-        setMessage({ type: "error", text: "Cannot mix FULL and HALF on same date" });
-      } else if (fullCount >= FULL_MAX) {
-        setMessage({ type: "error", text: "Maximum 2 Full Duties reached" });
-      }
-      return;
-    }
-    if (dutyType === "HALF" && isHalfDisabled) {
-      if (existingType === "FULL") {
-        setMessage({ type: "error", text: "Cannot mix FULL and HALF on same date" });
-      } else if (halfCount >= HALF_MAX) {
-        setMessage({ type: "error", text: "Maximum 4 Half Duties reached" });
-      }
-      return;
-    }
 
     setActionLoading(dutyType);
     try {
@@ -109,17 +111,8 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
           ? (worker as { full_duty_rate: number }).full_duty_rate
           : (worker as { half_duty_rate: number }).half_duty_rate;
 
-      const nextSlot = dutyType === "FULL" ? fullCount + 1 : halfCount + 1;
-
-      // extra guard: ensure nextSlot within max
-      if (dutyType === "FULL" && nextSlot > FULL_MAX) {
-        setMessage({ type: "error", text: "Maximum 2 Full Duties reached" });
-        return;
-      }
-      if (dutyType === "HALF" && nextSlot > HALF_MAX) {
-        setMessage({ type: "error", text: "Maximum 4 Half Duties reached" });
-        return;
-      }
+      const maxSlot = duties.reduce((m, d) => Math.max(m, d.slot_number), 0);
+      const nextSlot = maxSlot + 1;
 
       const {
         data: { user },
@@ -144,6 +137,11 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
           insertError.code === "23505"
         ) {
           setMessage({ type: "error", text: "Slot already taken for this worker/date" });
+        } else if (
+          insertError.message.includes("Daily limit") ||
+          insertError.message.includes("Maximum")
+        ) {
+          setMessage({ type: "error", text: insertError.message });
         } else {
           setMessage({ type: "error", text: insertError.message });
         }
@@ -216,9 +214,6 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
     formattedDate = selectedDate;
   }
 
-  const fullProgress = (fullCount / FULL_MAX) * 100;
-  const halfProgress = (halfCount / HALF_MAX) * 100;
-
   return (
     <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
       <div className="mb-4">
@@ -227,43 +222,23 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
         <p className="text-xs text-zinc-500">{selectedDate}</p>
       </div>
 
-      {/* Progress Bars */}
-      <div className="mb-4 space-y-3">
-        <div>
-          <div className="mb-1 flex justify-between text-xs">
-            <span className="font-medium">Full Duty</span>
-            <span className="text-zinc-500">
-              {fullCount}/{FULL_MAX} • {FULL_MAX - fullCount} remaining
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
-            <div
-              className="h-full bg-green-500 transition-all"
-              style={{ width: `${fullProgress}%` }}
-              role="progressbar"
-              aria-valuenow={fullCount}
-              aria-valuemin={0}
-              aria-valuemax={FULL_MAX}
-            />
-          </div>
+      {/* Team Budget Bar */}
+      <div className="mb-4">
+        <div className="mb-1 flex justify-between text-xs">
+          <span className="font-medium">Daily Team Budget</span>
+          <span className="text-zinc-500">
+            {teamUsedUnits}/{DAILY_TEAM_BUDGET} • {remainingUnits} remaining
+          </span>
         </div>
-        <div>
-          <div className="mb-1 flex justify-between text-xs">
-            <span className="font-medium">Half Duty</span>
-            <span className="text-zinc-500">
-              {halfCount}/{HALF_MAX} • {HALF_MAX - halfCount} remaining
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
-            <div
-              className="h-full bg-yellow-500 transition-all"
-              style={{ width: `${halfProgress}%` }}
-              role="progressbar"
-              aria-valuenow={halfCount}
-              aria-valuemin={0}
-              aria-valuemax={HALF_MAX}
-            />
-          </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
+          <div
+            className="h-full bg-blue-500 transition-all"
+            style={{ width: `${(Math.min(teamUsedUnits, DAILY_TEAM_BUDGET) / DAILY_TEAM_BUDGET) * 100}%` }}
+            role="progressbar"
+            aria-valuenow={teamUsedUnits}
+            aria-valuemin={0}
+            aria-valuemax={DAILY_TEAM_BUDGET}
+          />
         </div>
       </div>
 
@@ -275,7 +250,7 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
           <div className="mb-4 rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
             <div className="mb-2 flex items-center justify-between">
               <h4 className="font-medium text-zinc-900 dark:text-zinc-100">Full Duty</h4>
-              <span className="text-xs text-zinc-500">{FULL_MAX - fullCount} remaining</span>
+              <span className="text-xs text-zinc-500">{WORKER_MAX_FULL - fullCount} of 2 full left</span>
             </div>
 
             {fullCount > 0 ? (
@@ -298,15 +273,6 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
                       </button>
                     </li>
                   ))}
-                {/* placeholder slots not yet filled */}
-                {Array.from({ length: FULL_MAX - fullCount }).map((_, i) => (
-                  <li
-                    key={`full-empty-${i}`}
-                    className="rounded border border-dashed px-2 py-1 text-sm text-zinc-400"
-                  >
-                    Empty slot {fullCount + i + 1}
-                  </li>
-                ))}
               </ul>
             ) : (
               <p className="mb-3 text-sm text-zinc-500">No full duties recorded yet.</p>
@@ -322,9 +288,7 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
             </button>
             {isFullDisabled && (
               <p className="mt-2 text-xs text-zinc-500">
-                {existingType === "HALF"
-                  ? "Disabled: HALF duties already recorded"
-                  : "Maximum 2 Full Duties reached"}
+                {fullCount >= WORKER_MAX_FULL ? "Maximum 2 Full Duties per person" : `Daily limit reached (${teamUsedUnits}/${DAILY_TEAM_BUDGET} units)`}
               </p>
             )}
           </div>
@@ -333,7 +297,7 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
           <div className="mb-4 rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
             <div className="mb-2 flex items-center justify-between">
               <h4 className="font-medium text-zinc-900 dark:text-zinc-100">Half Duty</h4>
-              <span className="text-xs text-zinc-500">{HALF_MAX - halfCount} remaining</span>
+              <span className="text-xs text-zinc-500">{WORKER_MAX_HALF - halfCount} of 1 half left</span>
             </div>
 
             {halfCount > 0 ? (
@@ -356,14 +320,6 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
                       </button>
                     </li>
                   ))}
-                {Array.from({ length: HALF_MAX - halfCount }).map((_, i) => (
-                  <li
-                    key={`half-empty-${i}`}
-                    className="rounded border border-dashed px-2 py-1 text-sm text-zinc-400"
-                  >
-                    Empty slot {halfCount + i + 1}
-                  </li>
-                ))}
               </ul>
             ) : (
               <p className="mb-3 text-sm text-zinc-500">No half duties recorded yet.</p>
@@ -379,9 +335,7 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
             </button>
             {isHalfDisabled && (
               <p className="mt-2 text-xs text-zinc-500">
-                {existingType === "FULL"
-                  ? "Disabled: FULL duties already recorded"
-                  : "Maximum 4 Half Duties reached"}
+                {halfCount >= WORKER_MAX_HALF ? "Maximum 1 Half Duty per person" : `Daily limit reached (${teamUsedUnits}/${DAILY_TEAM_BUDGET} units)`}
               </p>
             )}
           </div>
