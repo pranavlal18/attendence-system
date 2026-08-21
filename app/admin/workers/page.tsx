@@ -215,6 +215,7 @@ export default function AdminWorkersPage() {
             onClose={() => {
               setEditModalOpen(false);
               setCurrentWorker(null);
+              fetchWorkers();
             }}
             worker={currentWorker}
           />

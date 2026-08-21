@@ -66,24 +66,29 @@ export const WorkerEditModal = ({
 
       const oldValue = JSON.stringify(worker);
 
-      // Persist rates, status AND name (name was previously silently dropped)
+      // Persist rates and status on workers (name lives in profiles, not workers)
       const { error } = await supabase
         .from('workers')
         .update({
           full_duty_rate: data.full_duty_rate,
           half_duty_rate: data.half_duty_rate,
           is_active: data.is_active,
-          name: data.name,
         })
         .eq('id', worker.id);
 
       if (error) throw error;
 
-      // Keep profiles.name in sync (best effort)
+      // Name lives in profiles — sync it there (required step, surfaced on failure)
       if (worker.profile_id) {
-        try {
-          await supabase.from('profiles').update({ name: data.name }).eq('id', worker.profile_id);
-        } catch (_) {}
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ name: data.name })
+          .eq('id', worker.profile_id);
+        if (profileError) {
+          throw new Error(
+            `Rates saved, but updating the worker's name failed: ${profileError.message}`
+          );
+        }
       }
 
       // Audit: log rate/status/name change
