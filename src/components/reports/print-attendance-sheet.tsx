@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   fetchAttendanceMatrix,
   type AttendanceMatrix,
@@ -10,17 +10,31 @@ interface Props {
   monthYear: string;
 }
 
+function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
+}
+
 export function PrintAttendanceSheet({ monthYear }: Props) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const defaultEnd = today.startsWith(monthYear) ? today : `${monthYear}-01`;
-  const [endDate, setEndDate] = useState(defaultEnd);
+  const [overrideEnd, setOverrideEnd] = useState<string | null>(null);
+  const [lastMonth, setLastMonth] = useState(monthYear);
   const [matrix, setMatrix] = useState<AttendanceMatrix | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setEndDate(today.startsWith(monthYear) ? today : `${monthYear}-01`);
-  }, [monthYear]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Adjust state during render when monthYear changes (React docs pattern):
+  // reset any explicit override and drop the stale matrix.
+  if (lastMonth !== monthYear) {
+    setLastMonth(monthYear);
+    setOverrideEnd(null);
+    setMatrix(null);
+    setError(null);
+  }
+  const endDate = overrideEnd ?? defaultEnd;
 
   const load = async () => {
     setLoading(true);
@@ -40,7 +54,7 @@ export function PrintAttendanceSheet({ monthYear }: Props) {
         <div>
           <label htmlFor="print-end-date" className="block text-xs font-medium text-zinc-500">Until date</label>
           <input id="print-end-date" type="date" value={endDate} min={`${monthYear}-01`}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => setOverrideEnd(e.target.value)}
             className="mt-1 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800" />
         </div>
         <button type="button" onClick={load} disabled={loading}

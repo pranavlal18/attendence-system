@@ -448,6 +448,12 @@ export async function fetchAttendanceMatrix(
     return "A";
   };
 
+  // Local (not UTC) today's date; days after today stay blank in the matrix
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
+
   try {
     const { data: dutyRows, error } = await supabase
       .from("duty_records")
@@ -484,6 +490,11 @@ export async function fetchAttendanceMatrix(
       const wm = tally.get(w.id);
       const cells: Record<number, AttendanceMatrixCell> = {};
       for (const d of days) {
+        const dateStr = `${monthYear}-${String(d).padStart(2, "0")}`;
+        if (dateStr > todayStr) {
+          cells[d] = "";
+          continue;
+        }
         const dm = wm?.get(d);
         cells[d] = dm ? cellLabel(dm.f, dm.h) : "A";
       }

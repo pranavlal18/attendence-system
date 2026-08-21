@@ -12,8 +12,8 @@ A full-featured Next.js 16 attendance management system built with React 19, Tai
 The **Shift Attendance System** manages daily duty records for workers with intelligent business rules around duty scheduling. Admins can also add, remove, correct, and convert duties while maintaining complete audit logs. Workers can record their own duties and view their attendance history.
 
 ### Core Business Rules
-- **Max 2 FULL duties** or **4 HALF duties** per worker per day
-- **No mixing** FULL + HALF duties on the same worker/date
+- **Team budget**: 4 units/day across ALL workers (FULL = 2 units, HALF = 1 unit)
+- **Per worker/day caps**: max **2 FULL** + max **1 HALF** duties (mixing FULL and HALF allowed)
 - **2 HALF duties = 1 FULL duty** equivalent (business equivalence)
 - **Slot uniqueness**: each worker can only have one duty per slot number on a given date
 - Rate tracking preserved per duty record for historical accuracy
@@ -154,7 +154,7 @@ Core tables created via migrations:
 **Key Constraints**:
 - `duty_records`: CHECK constraints on duty_type and slot_number
 - `duty_records`: Unique index on `(worker_id, date, slot_number)` — prevents slot conflicts
-- `duty_records`: Trigger `enforce_duty_business_rules()` — database-level enforcement of max 2 FULL / 4 HALF, no mixing
+- `duty_records`: Trigger `enforce_duty_budget_rules()` — database-level enforcement of the team budget (4 units/day, FULL=2, HALF=1) and per-worker caps (max 2 FULL + max 1 HALF, mixing allowed)
 - `workers`: Soft-delete via `deleted_at` column (20260824000000 migration)
 
 ## 🔐 Authentication & Authorization
@@ -247,16 +247,16 @@ The app uses Supabase client methods directly. Key operations:
 The system enforces these rules through multiple layers:
 
 1. **Service layer** (`src/services/attendance-service.ts`): Rich error messages before DB interaction
-2. **Database trigger** (`enforce_duty_business_rules()`): Defense-in-depth constraint enforcement
+2. **Database trigger** (`enforce_duty_budget_rules()`): Defense-in-depth constraint enforcement (team budget of 4 units/day, FULL=2 units, HALF=1 unit; per worker max 2 FULL + max 1 HALF, mixing allowed)
 3. **UI layer**: Disabled buttons, real-time warnings, progress bar states
 
 ### Common Scenarios Tested
 - Adding 2nd FULL duty on same date ✓
 - Adding 3rd FULL duty (blocked) ✓
-- Adding HALF when FULL already exists (blocked) ✓
-- Adding 5th HALF duty (blocked) ✓
-- Converting FULL → 2 HALF (when capacity allows) ✓
-- Converting 4 HALF → 2 FULL ✓
+- Mixing FULL + HALF on same worker/date ✓
+- Exceeding the team budget of 4 units/day (blocked) ✓
+- Converting 2 HALF → 1 FULL ✓
+- Converting FULL → HALF when it would exceed max 1 HALF per worker (blocked) ✓
 - Removing a duty and re-adding ✓
 - Audit log entries created for all CRUD operations ✓
 
