@@ -107,7 +107,7 @@ attendence-system/
 ### **Worker** (`/worker`)
 - Record duties for own profile only
 - View own duty records
-- Cannot mix FULL + HALF on same date
+- Max 1 HALF duty per person per day (mixing with FULL allowed)
 - Self-service logout
 
 ## 📱 Screen Descriptions

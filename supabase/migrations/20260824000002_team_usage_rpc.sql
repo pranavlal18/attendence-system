@@ -11,5 +11,6 @@ AS $$
   WHERE date = p_date;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.get_team_duty_usage(date) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.get_team_duty_usage(date) FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_team_duty_usage(date) TO authenticated;
