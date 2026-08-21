@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
 import { fetchCalendarDuties, formatMonthLabel } from "@/services/calendar-service";
 import type { CalendarDay } from "@/services/calendar-service";
 import { fetchWorkersForFilter } from "@/services/attendance-service";
+import { AdminNav } from "@/components/admin-nav";
 
 type Duties = CalendarDay["duties"];
 type DutiesMap = Map<string, Duties>;
@@ -91,6 +91,7 @@ export default function AdminCalendarPage() {
   return (
     <div className="min-h-screen bg-zinc-100 p-4 sm:p-6 dark:bg-zinc-900">
       <div className="mx-auto max-w-6xl space-y-6">
+        <AdminNav />
         {/* Header */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -99,20 +100,6 @@ export default function AdminCalendarPage() {
             </h1>
             <p className="text-sm text-zinc-500">View duties by month, filter by worker.</p>
           </div>
-          <nav className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/admin"
-              className="inline-flex min-h-[44px] items-center rounded-md border bg-white px-3 py-2 text-sm font-medium dark:border-zinc-700 dark:bg-zinc-800"
-            >
-              ← Dashboard
-            </Link>
-            <Link
-              href="/admin/attendance"
-              className="inline-flex min-h-[44px] items-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white"
-            >
-              Attendance
-            </Link>
-          </nav>
         </header>
 
         {/* Controls */}

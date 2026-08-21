@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import Link from "next/link";
 import { format } from "date-fns";
 import {
   fetchAuditLogs,
@@ -9,6 +8,7 @@ import {
   type AuditLog,
   type AuditFilters,
 } from "@/services/audit-service";
+import { AdminNav } from "@/components/admin-nav";
 
 const PAGE_SIZE = 20;
 
@@ -127,26 +127,13 @@ export default function AuditLogPage() {
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-4 sm:p-6">
       <div className="mx-auto max-w-6xl space-y-6">
+        <AdminNav />
         {/* Header */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">Audit Log</h1>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Who did what when - money-affecting actions</p>
           </div>
-          <nav className="flex gap-2">
-            <Link
-              href="/admin"
-              className="inline-flex min-h-[44px] items-center rounded-md border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/admin/attendance"
-              className="inline-flex min-h-[44px] items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
-            >
-              Attendance
-            </Link>
-          </nav>
         </header>
 
         {/* Filters bar */}

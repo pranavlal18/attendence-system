@@ -10,6 +10,7 @@ import {
 import { WorkerSummaryTable } from "@/components/reports/worker-summary-table";
 import { MonthSelector } from "@/components/reports/month-selector";
 import { PayoutForm } from "@/components/reports/payout-form";
+import { AdminNav } from "@/components/admin-nav";
 
 export default function ReportsPage() {
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -100,6 +101,7 @@ export default function ReportsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+      <AdminNav />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Monthly Reports</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
