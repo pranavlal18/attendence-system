@@ -18,7 +18,11 @@ END $$;
 DROP FUNCTION IF EXISTS enforce_duty_business_rules();
 
 CREATE OR REPLACE FUNCTION enforce_duty_budget_rules()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_team_units INT;
   v_worker_fulls INT;
@@ -53,7 +57,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER duty_budget_trigger
 BEFORE INSERT OR UPDATE ON public.duty_records
