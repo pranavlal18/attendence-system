@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import { supabase } from '@/features/auth/auth-provider';
 import { useRouter } from 'next/navigation';
@@ -19,38 +21,57 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginForm>();
+  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    });
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
 
-    if (authError) {
-      alert(authError.message);
-      setIsLoading(false);
-      return;
-    }
-
-    if (authData.user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', authData.user.id)
-        .single();
-
-      if (profile?.role) {
-        localStorage.setItem('userRole', profile.role);
+      if (authError) {
+        alert(authError.message);
+        return;
       }
-    }
 
-    router.push(`/${authData.user.role === 'ADMIN' ? 'admin' : 'worker'}/dashboard`);
+      let userRole: string | null = null;
+      if (authData.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('user_id', authData.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Profile fetch error:', profileError);
+          alert('Login succeeded but profile not found. Contact admin. ' + profileError.message);
+          return;
+        }
+
+        if (profile?.role) {
+          localStorage.setItem('userRole', profile.role);
+          userRole = profile.role;
+        } else {
+          alert('No role assigned to this user.');
+          return;
+        }
+      }
+
+      const dest = `/${userRole === 'ADMIN' ? 'admin' : 'worker'}`;
+      // Use hard navigation to avoid stale router + middleware loop
+      window.location.href = dest;
+    } catch (e) {
+      console.error('Login exception:', e);
+      alert(e instanceof Error ? e.message : 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
-      <div className="bg-white dark:bg-zinc-800 rounded-lg p-8 max-w-md w-full shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-900 p-4">
+      <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 sm:p-8 max-w-md w-full shadow-xl">
         <h2 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-6 text-center">Sign In</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
@@ -85,13 +106,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="text-center text-sm mt-4 text-zinc-500 dark:text-zinc-400">
-          Don't have an account?{' '}
-          <a
-            href="/(auth)/login"
-            className="font-medium text-zinc-600 dark:text-zinc-400 underline underline-opacity-50"
-          >
-            Sign up as admin or worker
-          </a>
+          Don&apos;t have an account? Contact your administrator.
         </p>
       </div>
     </div>

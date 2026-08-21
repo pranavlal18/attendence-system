@@ -2,8 +2,13 @@
 
 import * as React from "react";
 
+export const Select = ({ children, ...rest }: { children?: React.ReactNode; [key: string]: any }) => {
+  return <div {...rest}>{children}</div>;
+};
+Select.displayName = "Select";
+
 export interface SelectTriggerProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const SelectTrigger = ({ className, children, ...rest }: SelectTriggerProps) => {
@@ -17,7 +22,7 @@ const SelectTrigger = ({ className, children, ...rest }: SelectTriggerProps) => 
 SelectTrigger.displayName = "SelectTrigger";
 
 export interface SelectValueProps extends React.HTMLAttributes<HTMLSpanElement> {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const SelectValue = ({ className, children, ...rest }: SelectValueProps) => {
@@ -31,7 +36,7 @@ const SelectValue = ({ className, children, ...rest }: SelectValueProps) => {
 SelectValue.displayName = "SelectValue";
 
 export interface SelectContentProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const SelectContent = ({ className, children, ...rest }: SelectContentProps) => {
@@ -45,7 +50,9 @@ const SelectContent = ({ className, children, ...rest }: SelectContentProps) => 
 SelectContent.displayName = "SelectContent";
 
 export interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  value?: string;
+  defaultSelected?: boolean;
 }
 
 const SelectItem = ({ className, children, ...rest }: SelectItemProps) => {
@@ -59,7 +66,7 @@ const SelectItem = ({ className, children, ...rest }: SelectItemProps) => {
 SelectItem.displayName = "SelectItem";
 
 export interface SelectSeparatorProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const SelectSeparator = ({ className, children, ...rest }: SelectSeparatorProps) => {

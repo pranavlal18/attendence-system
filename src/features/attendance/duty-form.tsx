@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { FULL_MAX, HALF_MAX } from "../../constants/duty-types";
 import { format } from "date-fns";
+import { logAction } from "@/lib/audit-logger";
 
 interface DutyRecord {
   id: string;
@@ -24,6 +25,7 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
   const [duties, setDuties] = useState<DutyRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<"FULL" | "HALF" | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const fetchDuties = async () => {
@@ -119,14 +121,21 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
         return;
       }
 
-      const { error: insertError } = await supabase.from("duty_records").insert({
-        worker_id: workerId,
-        date: selectedDate,
-        duty_type: dutyType,
-        slot_number: nextSlot,
-        rate_applied,
-        created_by: null,
-      });
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { data: inserted, error: insertError } = await supabase
+        .from("duty_records")
+        .insert({
+          worker_id: workerId,
+          date: selectedDate,
+          duty_type: dutyType,
+          slot_number: nextSlot,
+          rate_applied,
+          created_by: user?.id ?? null,
+        })
+        .select()
+        .single();
 
       if (insertError) {
         if (
@@ -141,6 +150,18 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
         return;
       }
 
+      // Audit worker record
+      try {
+        await logAction({
+          actorUserId: user?.id ?? null,
+          action: "RECORD_DUTY",
+          entityType: "duty_record",
+          entityId: (inserted as any)?.id ?? `${workerId}-${selectedDate}-${nextSlot}`,
+          oldValue: null,
+          newValue: JSON.stringify(inserted ?? { worker_id: workerId, date: selectedDate, duty_type: dutyType, slot_number: nextSlot, rate_applied }),
+        });
+      } catch (_) {}
+
       setMessage({ type: "success", text: `${dutyType} duty added (slot ${nextSlot})` });
       await fetchDuties();
       onSuccess?.();
@@ -151,6 +172,40 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
       });
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleRemove = async (dutyId: string, dutyLabel: string) => {
+    if (!confirm(`Remove ${dutyLabel}? This will undo the duty for ${selectedDate}.`)) return;
+    setRemovingId(dutyId);
+    setMessage(null);
+    try {
+      const target = duties.find((d) => d.id === dutyId);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { error } = await supabase.from("duty_records").delete().eq("id", dutyId).eq("worker_id", workerId);
+      if (error) {
+        setMessage({ type: "error", text: error.message });
+        return;
+      }
+      try {
+        await logAction({
+          actorUserId: user?.id ?? null,
+          action: "DELETE_DUTY",
+          entityType: "duty_record",
+          entityId: dutyId,
+          oldValue: target ? JSON.stringify(target) : null,
+          newValue: null,
+        });
+      } catch (_) {}
+      setMessage({ type: "success", text: `${dutyLabel} removed` });
+      await fetchDuties();
+      onSuccess?.();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to remove" });
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -230,12 +285,17 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
                   .map((d) => (
                     <li
                       key={d.id}
-                      className="flex items-center gap-2 rounded bg-green-50 px-2 py-1 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      className="flex items-center justify-between rounded bg-green-50 px-2 py-1 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300"
                     >
-                      <span aria-hidden>✓</span>
-                      <span>
-                        Slot {d.slot_number} — ₹{d.rate_applied}
-                      </span>
+                      <span className="flex items-center gap-2"><span aria-hidden>✓</span> Slot {d.slot_number}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(d.id, `Full Duty Slot ${d.slot_number}`)}
+                        disabled={removingId === d.id}
+                        className="ml-2 rounded bg-white px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:bg-zinc-800 dark:text-red-400"
+                      >
+                        {removingId === d.id ? "Removing…" : "Undo"}
+                      </button>
                     </li>
                   ))}
                 {/* placeholder slots not yet filled */}
@@ -283,12 +343,17 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
                   .map((d) => (
                     <li
                       key={d.id}
-                      className="flex items-center gap-2 rounded bg-yellow-50 px-2 py-1 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                      className="flex items-center justify-between rounded bg-yellow-50 px-2 py-1 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
                     >
-                      <span aria-hidden>✓</span>
-                      <span>
-                        Slot {d.slot_number} — ₹{d.rate_applied}
-                      </span>
+                      <span className="flex items-center gap-2"><span aria-hidden>✓</span> Slot {d.slot_number}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(d.id, `Half Duty Slot ${d.slot_number}`)}
+                        disabled={removingId === d.id}
+                        className="ml-2 rounded bg-white px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:bg-zinc-800 dark:text-red-400"
+                      >
+                        {removingId === d.id ? "Removing…" : "Undo"}
+                      </button>
                     </li>
                   ))}
                 {Array.from({ length: HALF_MAX - halfCount }).map((_, i) => (

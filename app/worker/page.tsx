@@ -13,6 +13,12 @@ export default function WorkerDashboard() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("userRole");
+    window.location.href = "/login";
+  };
+
   useEffect(() => {
     const resolveWorker = async () => {
       setLoading(true);
@@ -77,14 +83,20 @@ export default function WorkerDashboard() {
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-4 sm:p-6">
       <div className="mx-auto flex max-w-xl flex-col gap-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
-            My Dashboard
-          </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Select Date → Record Duty
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-500">{formattedDate}</p>
+        <header className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+              My Dashboard
+            </h1>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">Select Date → Record Duty</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-500">{formattedDate}</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 min-h-[44px]"
+          >
+            Log out
+          </button>
         </header>
 
         {loading ? (

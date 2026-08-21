@@ -26,7 +26,7 @@ export function Navigation() {
   if (!userRole) {
     return (
       <div className="hidden">
-        <Link href="/(auth)/login">Sign in</Link>
+        <Link href="/login">Sign in</Link>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export function Navigation() {
         {userRole === 'ADMIN' ? (
           <>
             <Link
-              href="/admin/dashboard"
+              href="/admin"
               className="mr-3 px-3 py-1 text-zinc-800 dark:text-zinc-200 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
               Admin Panel
@@ -56,13 +56,13 @@ export function Navigation() {
         ) : userRole === 'WORKER' && (
           <>
             <Link
-              href="/worker/dashboard"
+              href="/worker"
               className="mr-3 px-3 py-1 text-zinc-800 dark:text-zinc-200 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
               Dashboard
             </Link>
             <Link
-              href="/worker/records"
+              href="/worker/attendance"
               className="px-3 py-1 text-zinc-800 dark:text-zinc-200 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
               My Records
