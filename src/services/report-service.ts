@@ -408,7 +408,7 @@ export async function getPaymentStatus(
 // Attendance matrix (admin printable report)
 // ---------------------------------------------------------------------------
 
-export type AttendanceMatrixCell = "F" | "F+F" | "H" | "F+H" | "A" | "";
+export type AttendanceMatrixCell = "F" | "2F" | "H" | "FH" | "A" | "";
 
 export interface AttendanceMatrixWorker {
   workerId: string;
@@ -442,9 +442,9 @@ export async function fetchAttendanceMatrix(
   const cellLabel = (fulls: number, halves: number): AttendanceMatrixCell => {
     if (fulls === 0 && halves === 0) return "A";
     if (fulls === 1 && halves === 0) return "F";
-    if (fulls === 2 && halves === 0) return "F+F";
+    if (fulls === 2 && halves === 0) return "2F";
     if (fulls === 0 && halves === 1) return "H";
-    if (fulls === 1 && halves === 1) return "F+H";
+    if (fulls === 1 && halves === 1) return "FH";
     return "A";
   };
 

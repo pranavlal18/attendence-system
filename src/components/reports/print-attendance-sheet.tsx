@@ -48,6 +48,23 @@ export function PrintAttendanceSheet({ monthYear }: Props) {
     }
   };
 
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
+  const downloadPdf = async () => {
+    if (!matrix) return;
+    setPdfGenerating(true);
+    setError(null);
+    try {
+      // Dynamic import keeps the ~350KB jsPDF bundle out of initial page load
+      const { generateAttendancePdf } = await import("@/lib/pdf/attendance-pdf");
+      generateAttendancePdf(matrix);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate PDF");
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   return (
     <section className="mt-8">
       <div className="flex flex-wrap items-end gap-3 print:hidden">
@@ -64,6 +81,10 @@ export function PrintAttendanceSheet({ monthYear }: Props) {
         <button type="button" onClick={() => window.print()} disabled={!matrix}
           className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900">
           Print
+        </button>
+        <button type="button" onClick={downloadPdf} disabled={!matrix || pdfGenerating}
+          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+          {pdfGenerating ? "Generating…" : "Download PDF"}
         </button>
       </div>
 
@@ -97,7 +118,7 @@ export function PrintAttendanceSheet({ monthYear }: Props) {
               ))}
             </tbody>
           </table>
-          <p className="mt-1 text-[10px] text-zinc-500 print:text-black">F = 1 Full · F+F = 2 Full · H = Half · F+H · A = Absent</p>
+          <p className="mt-1 text-[10px] text-zinc-500 print:text-black">F = 1 Full · 2F = 2 Fulls · H = Half · FH = 1 Full + 1 Half · A = Absent</p>
         </div>
       )}
     </section>
