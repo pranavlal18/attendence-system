@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { FULL_MAX, HALF_MAX } from "../../constants/duty-types";
+import { WORKER_MAX_FULL as FULL_MAX, WORKER_MAX_HALF as HALF_MAX } from "../../constants/duty-types";
 import { format } from "date-fns";
 import { logAction } from "@/lib/audit-logger";
 
