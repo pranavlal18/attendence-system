@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     return [
       { source: '/(auth)/login', destination: '/login', permanent: false },
       { source: '/(auth)/login/:path*', destination: '/login', permanent: false },
+      { source: '/worker/attendance', destination: '/worker', permanent: false },
     ];
   },
 };

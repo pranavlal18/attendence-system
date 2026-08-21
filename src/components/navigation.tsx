@@ -62,10 +62,10 @@ export function Navigation() {
               Dashboard
             </Link>
             <Link
-              href="/worker/attendance"
+              href="/worker/monthly-report"
               className="px-3 py-1 text-zinc-800 dark:text-zinc-200 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
-              My Records
+              My Monthly Work
             </Link>
           </>
         )}

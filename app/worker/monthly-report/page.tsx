@@ -6,6 +6,7 @@ import {
   fetchWorkerMonthlyDetail,
   type WorkerMonthDetail,
 } from "@/services/report-service";
+import { WorkerNav } from "@/components/worker-nav";
 
 export default function WorkerMonthlyReportPage() {
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -103,6 +104,8 @@ export default function WorkerMonthlyReportPage() {
           </button>
         </header>
 
+        <WorkerNav />
+
         <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <label
             htmlFor="month"
@@ -178,27 +181,6 @@ export default function WorkerMonthlyReportPage() {
             </div>
           </>
         ) : null}
-
-        <nav className="flex gap-4 text-sm">
-          <a
-            href="/worker"
-            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
-          >
-            Dashboard
-          </a>
-          <a
-            href="/worker/attendance"
-            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
-          >
-            Attendance
-          </a>
-          <a
-            href="/worker/monthly-report"
-            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
-          >
-            My Monthly Work
-          </a>
-        </nav>
       </div>
     </div>
   );

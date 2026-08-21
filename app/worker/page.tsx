@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
 import { DatePicker } from "@/components/calendar/date-picker";
 import { DutyForm } from "@/features/attendance/duty-form";
+import { WorkerNav } from "@/components/worker-nav";
 
 export default function WorkerDashboard() {
   const today = new Date().toISOString().slice(0, 10);
@@ -99,6 +100,8 @@ export default function WorkerDashboard() {
           </button>
         </header>
 
+        <WorkerNav />
+
         {loading ? (
           <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading worker profile...</p>
@@ -122,27 +125,6 @@ export default function WorkerDashboard() {
             <DutyForm workerId={workerId} selectedDate={selectedDate} />
           </div>
         ) : null}
-
-        <nav className="flex gap-4 text-sm">
-          <a
-            href="/worker"
-            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
-          >
-            Dashboard
-          </a>
-          <a
-            href="/worker/attendance"
-            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
-          >
-            Attendance
-          </a>
-          <a
-            href="/worker/monthly-report"
-            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
-          >
-            My Monthly Work
-          </a>
-        </nav>
       </div>
     </div>
   );
