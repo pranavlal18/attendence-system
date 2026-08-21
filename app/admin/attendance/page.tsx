@@ -10,6 +10,13 @@ import {
   type AttendanceTotals,
 } from "@/services/attendance-service";
 import { logAction } from "@/lib/audit-logger";
+import {
+  FULL_UNITS,
+  HALF_UNITS,
+  DAILY_TEAM_BUDGET,
+  WORKER_MAX_FULL,
+  WORKER_MAX_HALF,
+} from "../../../constants/duty-types";
 import { AdminNav } from "@/components/admin-nav";
 import { AttendanceFilters as AttendanceFiltersUI } from "@/components/admin/filters/attendance-filters";
 import { AttendanceTable } from "@/components/admin/records/attendance-table";
@@ -121,7 +128,7 @@ export default function AdminAttendancePage() {
   const [addType, setAddType] = useState<"FULL" | "HALF">("FULL");
   const [addSaving, setAddSaving] = useState(false);
   const [addMsg, setAddMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  // live preview for business logic (2 HALF = 1 FULL, max 4 HALF / 2 FULL / no mix)
+  // live preview for business logic (FULL=2 units, HALF=1 unit, team budget 4 units/day, worker caps 2 FULL + 1 HALF, mixing allowed)
   const [addExisting, setAddExisting] = useState<Array<{ duty_type: string; slot_number: number }>>([]);
   const [addPreviewLoading, setAddPreviewLoading] = useState(false);
 
@@ -165,21 +172,29 @@ export default function AdminAttendancePage() {
 
       const { data: existing, error: exErr } = await supabase
         .from("duty_records")
-        .select("duty_type, slot_number")
-        .eq("worker_id", addWorkerId)
+        .select("worker_id, duty_type, slot_number")
         .eq("date", addDate);
       if (exErr) throw new Error(exErr.message);
-      const rows = (existing ?? []) as Array<{ duty_type: string; slot_number: number }>;
-      const existingType = rows[0]?.duty_type as "FULL" | "HALF" | undefined;
-      if (existingType && existingType !== addType) {
-        throw new Error(`Cannot mix FULL and HALF on same date (already has ${existingType})`);
+      const rows = (existing ?? []) as Array<{ worker_id: string; duty_type: string; slot_number: number }>;
+      const workerRows = rows.filter((r) => r.worker_id === addWorkerId);
+      const fullCount = workerRows.filter((r) => r.duty_type === "FULL").length;
+      const halfCount = workerRows.filter((r) => r.duty_type === "HALF").length;
+      if (addType === "FULL" && fullCount >= WORKER_MAX_FULL) {
+        throw new Error(`Maximum ${WORKER_MAX_FULL} Full Duties per person`);
       }
-      const count = rows.filter((r) => r.duty_type === addType).length;
-      const max = addType === "FULL" ? 2 : 4;
-      if (count >= max) throw new Error(`Maximum ${max} ${addType} duties already reached for ${addDate}`);
-      const nextSlot = count + 1;
-      if (addType === "FULL" && nextSlot > 2) throw new Error("FULL slot must be 1-2");
-      if (addType === "HALF" && nextSlot > 4) throw new Error("HALF slot must be 1-4");
+      if (addType === "HALF" && halfCount >= WORKER_MAX_HALF) {
+        throw new Error(`Maximum ${WORKER_MAX_HALF} Half Duty per person`);
+      }
+      const teamUsedUnits = rows.reduce(
+        (acc, r) => acc + (r.duty_type === "FULL" ? FULL_UNITS : HALF_UNITS),
+        0
+      );
+      const needed = addType === "FULL" ? FULL_UNITS : HALF_UNITS;
+      if (teamUsedUnits + needed > DAILY_TEAM_BUDGET) {
+        throw new Error(`Daily limit reached (${teamUsedUnits}/${DAILY_TEAM_BUDGET} units used)`);
+      }
+      // Global slot: max across ALL this worker's records for the date (mixing allowed)
+      const nextSlot = workerRows.reduce((m, r) => Math.max(m, r.slot_number), 0) + 1;
 
       const {
         data: { user },
@@ -238,13 +253,75 @@ export default function AdminAttendancePage() {
       const fullRate = (worker as any).full_duty_rate;
       const halfRate = (worker as any).half_duty_rate;
 
-      // 2. Fetch existing records for audit oldValue
-      const { data: existing } = await supabase
+      // 2. Fetch existing records for this worker/date (audit oldValue + validation input)
+      const { data: existing, error: exErr } = await supabase
         .from("duty_records")
         .select("*")
         .eq("worker_id", addWorkerId)
         .eq("date", addDate);
+      if (exErr) throw new Error(exErr.message);
+      const existingRows = (existing ?? []) as Array<{ id: string; duty_type: string }>;
 
+      // 3. Fetch ALL workers' rows for the date (team budget spans everyone)
+      const { data: teamRowsData, error: teamErr } = await supabase
+        .from("duty_records")
+        .select("worker_id, duty_type")
+        .eq("date", addDate);
+      if (teamErr) throw new Error(teamErr.message);
+      const teamRows = (teamRowsData ?? []) as Array<{ duty_type: string }>;
+
+      const unitsOf = (t: string) => (t === "FULL" ? FULL_UNITS : HALF_UNITS);
+      const deletedUnits = existingRows.reduce((acc, r) => acc + unitsOf(r.duty_type), 0);
+      const teamUnitsAfterDelete =
+        teamRows.reduce((acc, r) => acc + unitsOf(r.duty_type), 0) - deletedUnits;
+
+      // 4. Compute the exact target rows BEFORE deleting anything
+      let target: Array<{ duty_type: "FULL" | "HALF"; rate_applied: number }>;
+      if (mode === "clear") {
+        target = [{ duty_type: addType, rate_applied: addType === "FULL" ? fullRate : halfRate }];
+      } else {
+        // Convert preserves total units: FULL-containing days become all HALF,
+        // HALF-only days pair up into FULL (2 HALF = 1 FULL).
+        const hasFull = existingRows.some((r) => r.duty_type === "FULL");
+        if (hasFull) {
+          target = Array.from({ length: deletedUnits }, () => ({
+            duty_type: "HALF" as const,
+            rate_applied: halfRate,
+          }));
+        } else {
+          if (deletedUnits < FULL_UNITS) {
+            throw new Error(
+              `Cannot convert: need at least ${FULL_UNITS} units (${FULL_UNITS / HALF_UNITS} HALF duties) to make one FULL`
+            );
+          }
+          target = Array.from({ length: deletedUnits / FULL_UNITS }, () => ({
+            duty_type: "FULL" as const,
+            rate_applied: fullRate,
+          }));
+        }
+      }
+
+      // 5. Validate target rows against the POST-deletion state; abort before touching data
+      const targetFulls = target.filter((t) => t.duty_type === "FULL").length;
+      const targetHalves = target.filter((t) => t.duty_type === "HALF").length;
+      if (targetFulls > WORKER_MAX_FULL) {
+        throw new Error(
+          `Conversion rejected: ${targetFulls} FULL exceeds max ${WORKER_MAX_FULL} per worker/day`
+        );
+      }
+      if (targetHalves > WORKER_MAX_HALF) {
+        throw new Error(
+          `Conversion rejected: ${targetHalves} HALF exceeds max ${WORKER_MAX_HALF} per worker/day`
+        );
+      }
+      const targetUnits = targetFulls * FULL_UNITS + targetHalves * HALF_UNITS;
+      if (teamUnitsAfterDelete + targetUnits > DAILY_TEAM_BUDGET) {
+        throw new Error(
+          `Rejected: daily team limit would be exceeded (${teamUnitsAfterDelete + targetUnits}/${DAILY_TEAM_BUDGET} units)`
+        );
+      }
+
+      // 6. Validation passed — safe to mutate
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -259,30 +336,27 @@ export default function AdminAttendancePage() {
       if (delErr) throw new Error(delErr.message);
 
       // Audit delete
-      if (existing && existing.length > 0) {
-        for (const row of existing) {
-          await logAction({
-            actorUserId: user?.id ?? null,
-            action: "DELETE_DUTY_OVERRIDE",
-            entityType: "duty_record",
-            entityId: row.id,
-            oldValue: JSON.stringify(row),
-            newValue: null,
-          });
-        }
+      for (const row of existingRows) {
+        await logAction({
+          actorUserId: user?.id ?? null,
+          action: "DELETE_DUTY_OVERRIDE",
+          entityType: "duty_record",
+          entityId: row.id,
+          oldValue: JSON.stringify(row),
+          newValue: null,
+        });
       }
 
-      if (mode === "clear") {
-        // Clear & insert 1 new addType duty at slot 1
-        const rate_applied = addType === "FULL" ? fullRate : halfRate;
+      for (let i = 0; i < target.length; i++) {
+        const t = target[i];
         const { data: inserted, error: insErr } = await supabase
           .from("duty_records")
           .insert({
             worker_id: addWorkerId,
             date: addDate,
-            duty_type: addType,
-            slot_number: 1,
-            rate_applied,
+            duty_type: t.duty_type,
+            slot_number: i + 1,
+            rate_applied: t.rate_applied,
             created_by: user?.id ?? null,
           })
           .select()
@@ -297,83 +371,17 @@ export default function AdminAttendancePage() {
           oldValue: null,
           newValue: JSON.stringify(inserted),
         });
+      }
 
+      if (mode === "clear") {
         setAddMsg({ type: "success", text: `Cleared & replaced with 1 ${addType} duty for ${addDate}` });
-      } else if (mode === "convert") {
-        // Convert: e.g. if existing was FULL (1 or 2), convert to 2 HALF per FULL (max 4 HALF)
-        // Or if existing was HALF, convert 2 HALF into 1 FULL
-        const existingType = (existing?.[0] as any)?.duty_type;
-        const existingCount = existing?.length ?? 0;
-
-        if (existingType === "FULL") {
-          // 1 FULL = 2 HALF. If 1 FULL existed, create 2 HALF. If 2 FULL existed, create 4 HALF.
-          const targetHalfCount = Math.min(existingCount * 2, 4);
-          for (let i = 1; i <= targetHalfCount; i++) {
-            const { data: inserted, error: insErr } = await supabase
-              .from("duty_records")
-              .insert({
-                worker_id: addWorkerId,
-                date: addDate,
-                duty_type: "HALF",
-                slot_number: i,
-                rate_applied: halfRate,
-                created_by: user?.id ?? null,
-              })
-              .select()
-              .single();
-            if (!insErr && inserted) {
-              await logAction({
-                actorUserId: user?.id ?? null,
-                action: "CREATE_DUTY_ADMIN",
-                entityType: "duty_record",
-                entityId: (inserted as any).id,
-                oldValue: null,
-                newValue: JSON.stringify(inserted),
-              });
-            }
-          }
-          setAddMsg({ type: "success", text: `Converted ${existingCount} FULL duty(ies) into ${targetHalfCount} HALF duties for ${addDate}` });
-        } else if (existingType === "HALF") {
-          // 2 HALF = 1 FULL. e.g. 4 HALF -> 2 FULL, or 2 HALF -> 1 FULL
-          const targetFullCount = Math.min(Math.floor(existingCount / 2), 2) || 1;
-          for (let i = 1; i <= targetFullCount; i++) {
-            const { data: inserted, error: insErr } = await supabase
-              .from("duty_records")
-              .insert({
-                worker_id: addWorkerId,
-                date: addDate,
-                duty_type: "FULL",
-                slot_number: i,
-                rate_applied: fullRate,
-                created_by: user?.id ?? null,
-              })
-              .select()
-              .single();
-            if (!insErr && inserted) {
-              await logAction({
-                actorUserId: user?.id ?? null,
-                action: "CREATE_DUTY_ADMIN",
-                entityType: "duty_record",
-                entityId: (inserted as any).id,
-                oldValue: null,
-                newValue: JSON.stringify(inserted),
-              });
-            }
-          }
-          setAddMsg({ type: "success", text: `Converted ${existingCount} HALF duties into ${targetFullCount} FULL duty(ies) for ${addDate}` });
-        } else {
-          // fallback
-          const rate_applied = addType === "FULL" ? fullRate : halfRate;
-          await supabase.from("duty_records").insert({
-            worker_id: addWorkerId,
-            date: addDate,
-            duty_type: addType,
-            slot_number: 1,
-            rate_applied,
-            created_by: user?.id ?? null,
-          });
-          setAddMsg({ type: "success", text: `Reset & added ${addType} for ${addDate}` });
-        }
+      } else {
+        const existingFulls = existingRows.filter((r) => r.duty_type === "FULL").length;
+        const existingHalves = existingRows.filter((r) => r.duty_type === "HALF").length;
+        setAddMsg({
+          type: "success",
+          text: `Converted ${existingFulls} FULL / ${existingHalves} HALF into ${targetFulls} FULL / ${targetHalves} HALF for ${addDate}`,
+        });
       }
 
       await refetch(filters);
@@ -415,7 +423,7 @@ export default function AdminAttendancePage() {
           <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-2">Add Duty for Worker (admin)</h3>
           <p className="text-xs text-zinc-500 mb-2">If an employee missed marking that day and asks admin to add, admin can add FULL/HALF here.</p>
           <p className="text-[11px] text-zinc-400 mb-3 px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800 border dark:border-zinc-700">
-            Business rule: <b>2 HALF = 1 FULL</b> equivalent • Capacity per worker/day: <b>2 FULL</b> (slots 1-2) <b>or 4 HALF</b> (slots 1-4) • <b>No mixing</b> FULL + HALF same date. If worker already has FULL, HALF becomes unavailable and vice-versa.
+            Business rule: <b>FULL = 2 units</b> • <b>HALF = 1 unit</b> • Team budget: <b>{DAILY_TEAM_BUDGET} units/day across ALL workers</b> • Per worker/day: max <b>{WORKER_MAX_FULL} FULL</b> + max <b>{WORKER_MAX_HALF} HALF</b> (mixing allowed).
           </p>
           <div className="grid gap-3 sm:grid-cols-4">
             <label className="text-sm">
@@ -440,8 +448,8 @@ export default function AdminAttendancePage() {
                 onChange={(e) => setAddType(e.target.value as any)}
                 className="w-full rounded border px-2 py-2 text-sm min-h-[44px] bg-white dark:bg-zinc-900"
               >
-                <option value="FULL">FULL (max 2/day)</option>
-                <option value="HALF">HALF (max 4/day)</option>
+                <option value="FULL">FULL (max {WORKER_MAX_FULL}/day)</option>
+                <option value="HALF">HALF (max {WORKER_MAX_HALF}/day)</option>
               </select>
             </label>
             <div className="flex items-end">
@@ -457,7 +465,7 @@ export default function AdminAttendancePage() {
                 <p className="text-xs text-zinc-500">Loading existing duties…</p>
               ) : addExisting.length === 0 ? (
                 <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                  No duties yet for this worker on <b>{addDate}</b> — can add <b>{addType}</b> (slot {addType === "FULL" ? "1/2" : "1/4"}). Equivalent: <span className="text-zinc-500">2 HALF = 1 FULL</span>
+                  No duties yet for this worker on <b>{addDate}</b> — can add <b>{addType}</b> (slot {addType === "FULL" ? `1/${WORKER_MAX_FULL}` : `1/${WORKER_MAX_HALF}`}). Units: <span className="text-zinc-500">FULL = {FULL_UNITS}, HALF = {HALF_UNITS}</span>
                 </p>
               ) : (
                 <>
@@ -471,22 +479,21 @@ export default function AdminAttendancePage() {
                     </span>
                     <span className="font-normal text-zinc-500">
                       {" "}
-                      • Equivalent: {addExisting.filter((r) => r.duty_type === "FULL").length * 2 + addExisting.filter((r) => r.duty_type === "HALF").length} half-slots used /4
+                      • Units used: {addExisting.filter((r) => r.duty_type === "FULL").length * FULL_UNITS + addExisting.filter((r) => r.duty_type === "HALF").length * HALF_UNITS}/{DAILY_TEAM_BUDGET} (team budget)
                     </span>
                   </p>
                   {(() => {
-                    const existingType = addExisting[0]?.duty_type as "FULL" | "HALF" | undefined;
-                    const isMix = existingType && existingType !== addType;
                     const fullCount = addExisting.filter((r) => r.duty_type === "FULL").length;
                     const halfCount = addExisting.filter((r) => r.duty_type === "HALF").length;
-                    const fullReached = fullCount >= 2;
-                    const halfReached = halfCount >= 4;
-                    if (isMix) {
-                      const opposite = existingType === "FULL" ? "HALF" : "FULL";
+                    const fullReached = fullCount >= WORKER_MAX_FULL;
+                    const halfReached = halfCount >= WORKER_MAX_HALF;
+                    const capReached = addType === "FULL" ? fullReached : halfReached;
+                    if (capReached) {
+                      const opposite = addType === "FULL" ? "HALF" : "FULL";
                       return (
                         <div className="space-y-2 mt-1">
                           <p className="text-xs text-red-600">
-                            ⚠️ Already has {existingType} — cannot mix {existingType} and {addType} on the same date.
+                            ⚠️ Maximum {addType === "FULL" ? WORKER_MAX_FULL : WORKER_MAX_HALF} {addType} already reached for this worker on {addDate}.
                           </p>
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -495,7 +502,7 @@ export default function AdminAttendancePage() {
                               disabled={addSaving}
                               className="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                             >
-                              Convert existing {existingType}(s) to {opposite}(s)
+                              Convert existing duties to {opposite}(s)
                             </button>
                             <button
                               type="button"
@@ -509,10 +516,8 @@ export default function AdminAttendancePage() {
                         </div>
                       );
                     }
-                    if (addType === "FULL" && fullReached) return <p className="text-xs text-red-600">⚠️ 2 FULL already reached — capacity = 2 FULL or 4 HALF. Need to remove one first.</p>;
-                    if (addType === "HALF" && halfReached) return <p className="text-xs text-red-600">⚠️ 4 HALF already reached — capacity full (2 HALF = 1 FULL).</p>;
-                    const nextSlot = addType === "FULL" ? fullCount + 1 : halfCount + 1;
-                    return <p className="text-xs text-green-700 dark:text-green-400">Will add {addType} slot {nextSlot}. {addType === "HALF" ? "Remember: 2 HALF = 1 FULL equivalent." : ""}</p>;
+                    const nextSlot = addExisting.reduce((m, r) => Math.max(m, r.slot_number), 0) + 1;
+                    return <p className="text-xs text-green-700 dark:text-green-400">Will add {addType} slot {nextSlot}. {addType === "HALF" ? `Units: HALF = ${HALF_UNITS}, FULL = ${FULL_UNITS}.` : ""}</p>;
                   })()}
                 </>
               )}
