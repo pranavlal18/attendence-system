@@ -122,6 +122,27 @@ export default function WorkerAttendancePage() {
             <DutyForm workerId={workerId} selectedDate={selectedDate} />
           </div>
         ) : null}
+
+        <nav className="flex gap-4 text-sm">
+          <a
+            href="/worker"
+            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
+          >
+            Dashboard
+          </a>
+          <a
+            href="/worker/attendance"
+            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
+          >
+            Attendance
+          </a>
+          <a
+            href="/worker/monthly-report"
+            className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-400"
+          >
+            My Monthly Work
+          </a>
+        </nav>
       </div>
     </div>
   );
