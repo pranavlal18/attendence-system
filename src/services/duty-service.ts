@@ -44,10 +44,11 @@ export async function canRecordDuty(
   options?: { excludeRecordId?: string }
 ): Promise<CanRecordResult> {
   try {
-    // NOTE: fetches ALL workers' rows for the date (team budget is cross-worker)
+    // Own-worker rows (visible under RLS) for worker counts + next slot
     const { data, error } = await supabase
       .from("duty_records")
       .select("id, worker_id, duty_type, slot_number")
+      .eq("worker_id", workerId)
       .eq("date", date);
 
     if (error) {
@@ -58,9 +59,17 @@ export async function canRecordDuty(
     const rows = ((data ?? []) as DutyRecord[]).filter(
       (r) => !options?.excludeRecordId || r.id !== options.excludeRecordId
     );
-    const s = summarize(rows);
-    const workerRows = rows.filter((r) => r.worker_id === workerId);
-    const ws = summarize(workerRows);
+    const ws = summarize(rows);
+
+    // Team usage via SECURITY DEFINER RPC (RLS hides other workers' rows)
+    const { data: teamUsed, error: rpcError } = await supabase.rpc("get_team_duty_usage", {
+      p_date: date,
+    });
+    if (rpcError) {
+      console.error("canRecordDuty team usage rpc error:", rpcError);
+      return { allowed: false, reason: rpcError.message, usedUnits: 0, remainingUnits: 0, workerFullCount: ws.workerFullCount, workerHalfCount: ws.workerHalfCount, nextSlot: ws.nextSlot };
+    }
+    const s = { usedUnits: Number(teamUsed ?? 0) };
 
     const fail = (reason: string): CanRecordResult => ({
       allowed: false,
@@ -69,7 +78,7 @@ export async function canRecordDuty(
       remainingUnits: Math.max(0, DAILY_TEAM_BUDGET - s.usedUnits),
       workerFullCount: ws.workerFullCount,
       workerHalfCount: ws.workerHalfCount,
-      nextSlot: s.nextSlot,
+      nextSlot: ws.nextSlot,
     });
 
     if (dutyType === "FULL" && ws.workerFullCount >= WORKER_MAX_FULL) {
@@ -89,7 +98,7 @@ export async function canRecordDuty(
       remainingUnits: DAILY_TEAM_BUDGET - s.usedUnits - needed,
       workerFullCount: ws.workerFullCount,
       workerHalfCount: ws.workerHalfCount,
-      nextSlot: s.nextSlot,
+      nextSlot: ws.nextSlot,
     };
   } catch (err) {
     console.error("canRecordDuty unexpected error:", err);

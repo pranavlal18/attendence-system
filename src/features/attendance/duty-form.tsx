@@ -53,16 +53,17 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
         setDuties((data ?? []) as DutyRecord[]);
       }
 
-      const { data: teamRows } = await supabase
-        .from("duty_records")
-        .select("duty_type")
-        .eq("date", selectedDate);
-      const used = (teamRows ?? []).reduce(
-        (acc: number, r: { duty_type: string }) =>
-          acc + (r.duty_type === "FULL" ? FULL_UNITS : HALF_UNITS),
-        0
-      );
-      setTeamUsedUnits(used);
+      // Team usage via SECURITY DEFINER RPC (RLS hides other workers' rows).
+      // Fail CLOSED on error so buttons disable rather than mislead.
+      const { data: teamUsed, error: teamError } = await supabase.rpc("get_team_duty_usage", {
+        p_date: selectedDate,
+      });
+      if (teamError) {
+        console.error("get_team_duty_usage rpc error:", teamError);
+        setTeamUsedUnits(DAILY_TEAM_BUDGET);
+      } else {
+        setTeamUsedUnits(Number(teamUsed ?? 0));
+      }
     } catch (err) {
       setMessage({
         type: "error",
@@ -137,11 +138,6 @@ export function DutyForm({ workerId, selectedDate, onSuccess }: DutyFormProps) {
           insertError.code === "23505"
         ) {
           setMessage({ type: "error", text: "Slot already taken for this worker/date" });
-        } else if (
-          insertError.message.includes("Daily limit") ||
-          insertError.message.includes("Maximum")
-        ) {
-          setMessage({ type: "error", text: insertError.message });
         } else {
           setMessage({ type: "error", text: insertError.message });
         }
