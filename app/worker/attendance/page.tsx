@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { DatePicker } from "@/components/calendar/date-picker";
 import { DutyForm } from "@/features/attendance/duty-form";
 
-export default function WorkerDashboard() {
+export default function WorkerAttendancePage() {
   const today = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [workerId, setWorkerId] = useState<string | null>(null);
@@ -79,7 +79,7 @@ export default function WorkerDashboard() {
       <div className="mx-auto flex max-w-xl flex-col gap-6">
         <header className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
-            My Dashboard
+            My Attendance
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Select Date → Record Duty
