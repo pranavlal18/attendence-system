@@ -88,8 +88,33 @@ CREATE TRIGGER trg_enforce_duty_rules
 BEFORE INSERT OR UPDATE ON public.duty_records
 FOR EACH ROW EXECUTE FUNCTION public.enforce_duty_business_rules();
 
--- RLS: policies are defined in src/lib/supabase/rls-policies.sql (do NOT duplicate here).
--- Enable RLS is handled in earlier migrations / Supabase defaults; no change needed for Phase 4A.
+-- RLS for duty_records (profiles/workers/payouts/audit_logs already enabled in 20260821000000)
+ALTER TABLE public.duty_records ENABLE ROW LEVEL SECURITY;
+
+-- Helper already created in init: public.is_admin()
+DROP POLICY IF EXISTS "Workers can view own duty records" ON public.duty_records;
+CREATE POLICY "Workers can view own duty records" ON public.duty_records
+FOR SELECT USING (
+  worker_id IN (SELECT id FROM public.workers WHERE profile_id IN (SELECT id FROM public.profiles WHERE user_id = auth.uid()))
+);
+
+DROP POLICY IF EXISTS "Workers can insert own duty records" ON public.duty_records;
+CREATE POLICY "Workers can insert own duty records" ON public.duty_records
+FOR INSERT WITH CHECK (
+  worker_id IN (SELECT id FROM public.workers WHERE profile_id IN (SELECT id FROM public.profiles WHERE user_id = auth.uid()))
+);
+
+DROP POLICY IF EXISTS "Admins can view all duty records" ON public.duty_records;
+CREATE POLICY "Admins can view all duty records" ON public.duty_records FOR SELECT USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can insert duty records" ON public.duty_records;
+CREATE POLICY "Admins can insert duty records" ON public.duty_records FOR INSERT WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can update duty records" ON public.duty_records;
+CREATE POLICY "Admins can update duty records" ON public.duty_records FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can delete duty records" ON public.duty_records;
+CREATE POLICY "Admins can delete duty records" ON public.duty_records FOR DELETE USING (public.is_admin());
 
 COMMENT ON TABLE public.duty_records IS 'Daily duty records; rate_applied preserves historical rate. Business rules: max 2 FULL / 4 HALF per worker/date, no mixing, slot uniqueness.';
 COMMENT ON COLUMN public.duty_records.slot_number IS '1-4; FULL allows 1-2, HALF allows 1-4. Enforced via CHECK and trigger + Zod superRefine.';
