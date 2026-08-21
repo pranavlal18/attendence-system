@@ -17,10 +17,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
     }
 
-    // 1. Find worker -> profile_id (= auth user id)
+    // 1. Find worker -> profile -> auth user id (profiles.user_id, NOT profiles.id)
     const { data: worker, error: wErr } = await supabaseServer
       .from("workers")
-      .select("id, profile_id")
+      .select("id, profile_id, profiles(user_id)")
       .eq("id", workerId)
       .single();
 
@@ -28,9 +28,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
+    const rawProfile = (worker as { profiles?: { user_id?: string } | Array<{ user_id?: string }> | null })
+      .profiles;
+    const authUserId = Array.isArray(rawProfile)
+      ? rawProfile[0]?.user_id
+      : rawProfile?.user_id;
+
+    if (!authUserId) {
+      return NextResponse.json(
+        { error: "Worker has no linked login account" },
+        { status: 404 }
+      );
+    }
+
     // 2. Update the auth user's password
     const { error: updErr } = await supabaseServer.auth.admin.updateUserById(
-      (worker as any).profile_id,
+      authUserId,
       { password: String(password) }
     );
 

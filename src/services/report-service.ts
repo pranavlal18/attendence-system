@@ -466,6 +466,8 @@ export async function fetchAttendanceMatrix(
     const { data: workerRows, error: wErr } = await supabase
       .from("workers")
       .select("id, profiles(name)")
+      .eq("is_active", true)
+      .is("deleted_at", null)
       .order("id");
     if (wErr) throw wErr;
     const workersRaw = (workerRows ?? []) as unknown as Array<{ id: string; profiles: { name: string } | Array<{ name: string }> | null }>;
