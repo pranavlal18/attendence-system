@@ -497,3 +497,69 @@ export async function fetchAttendanceMatrix(
     throw err;
   }
 }
+
+export interface WorkerDayEntry {
+  date: string;
+  present: boolean;
+  label: string; // "Absent" | "1 Full" | "1 Full + 1 Half" | ...
+  earning: number;
+}
+
+export interface WorkerMonthDetail {
+  monthYear: string;
+  days: WorkerDayEntry[];
+  totalShifts: number;
+  totalEarnings: number;
+}
+
+export async function fetchWorkerMonthlyDetail(
+  workerId: string,
+  monthYear: string
+): Promise<WorkerMonthDetail> {
+  if (!isValidMonthYear(monthYear)) throw new Error(`Invalid monthYear: ${monthYear}`);
+  const start = `${monthYear}-01`;
+  const end = getNextMonth(monthYear);
+  const [y, m] = monthYear.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+
+  try {
+    const { data, error } = await supabase
+      .from("duty_records")
+      .select("date, duty_type, rate_applied")
+      .eq("worker_id", workerId)
+      .gte("date", start)
+      .lt("date", end)
+      .order("date", { ascending: true });
+    if (error) throw error;
+    const rows = (data ?? []) as Array<{ date: string; duty_type: "FULL" | "HALF"; rate_applied: number }>;
+
+    const byDate = new Map<string, { f: number; h: number; earning: number }>();
+    for (const r of rows) {
+      const cur = byDate.get(r.date) ?? { f: 0, h: 0, earning: 0 };
+      if (r.duty_type === "FULL") cur.f += 1; else cur.h += 1;
+      cur.earning += r.rate_applied ?? 0;
+      byDate.set(r.date, cur);
+    }
+
+    const days: WorkerDayEntry[] = [];
+    let totalShifts = 0;
+    let totalEarnings = 0;
+    for (let d = 1; d <= lastDay; d++) {
+      const date = `${monthYear}-${String(d).padStart(2, "0")}`;
+      const rec = byDate.get(date);
+      const shifts = rec ? rec.f + rec.h : 0;
+      const label = !rec ? "Absent"
+        : [
+            rec.f > 0 ? `${rec.f} Full${rec.f > 1 ? "s" : ""}` : null,
+            rec.h > 0 ? `${rec.h} Half` : null,
+          ].filter(Boolean).join(" + ");
+      totalShifts += shifts;
+      totalEarnings += rec?.earning ?? 0;
+      days.push({ date, present: !!rec, label, earning: rec?.earning ?? 0 });
+    }
+    return { monthYear, days, totalShifts, totalEarnings };
+  } catch (err) {
+    console.error("fetchWorkerMonthlyDetail unexpected error:", err);
+    throw err;
+  }
+}
