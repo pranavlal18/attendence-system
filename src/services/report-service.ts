@@ -403,3 +403,97 @@ export async function getPaymentStatus(
     return "UNPAID";
   }
 }
+
+// ---------------------------------------------------------------------------
+// Attendance matrix (admin printable report)
+// ---------------------------------------------------------------------------
+
+export type AttendanceMatrixCell = "F" | "F+F" | "H" | "F+H" | "A" | "";
+
+export interface AttendanceMatrixWorker {
+  workerId: string;
+  workerName: string;
+  cells: Record<number, AttendanceMatrixCell>;
+}
+
+export interface AttendanceMatrix {
+  monthYear: string;
+  endDate: string;
+  days: number[];
+  workers: AttendanceMatrixWorker[];
+}
+
+export async function fetchAttendanceMatrix(
+  monthYear: string,
+  endDate?: string
+): Promise<AttendanceMatrix> {
+  if (!isValidMonthYear(monthYear)) throw new Error(`Invalid monthYear: ${monthYear}`);
+  const start = `${monthYear}-01`;
+  const [y, m] = monthYear.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+
+  let endDay = endDate && endDate.startsWith(monthYear) ? Number(endDate.slice(8, 10)) : lastDay;
+  endDay = Math.min(Math.max(endDay, 1), lastDay);
+  const effectiveEnd = `${monthYear}-${String(endDay).padStart(2, "0")}`;
+
+  const days: number[] = [];
+  for (let d = 1; d <= endDay; d++) days.push(d);
+
+  const cellLabel = (fulls: number, halves: number): AttendanceMatrixCell => {
+    if (fulls === 0 && halves === 0) return "A";
+    if (fulls === 1 && halves === 0) return "F";
+    if (fulls === 2 && halves === 0) return "F+F";
+    if (fulls === 0 && halves === 1) return "H";
+    if (fulls === 1 && halves === 1) return "F+H";
+    return "A";
+  };
+
+  try {
+    const { data: dutyRows, error } = await supabase
+      .from("duty_records")
+      .select("worker_id, date, duty_type")
+      .gte("date", start)
+      .lte("date", effectiveEnd);
+    if (error) throw error;
+    const rows = (dutyRows ?? []) as Array<{ worker_id: string; date: string; duty_type: "FULL" | "HALF" }>;
+
+    const { data: workerRows, error: wErr } = await supabase
+      .from("workers")
+      .select("id, profiles(name)")
+      .order("id");
+    if (wErr) throw wErr;
+    const workersRaw = (workerRows ?? []) as unknown as Array<{ id: string; profiles: { name: string } | Array<{ name: string }> | null }>;
+
+    // per worker per day tallies
+    const tally = new Map<string, Map<number, { f: number; h: number }>>();
+    for (const r of rows) {
+      const day = Number(r.date.slice(8, 10));
+      if (!days.includes(day)) continue;
+      const wm = tally.get(r.worker_id) ?? new Map<number, { f: number; h: number }>();
+      const dm = wm.get(day) ?? { f: 0, h: 0 };
+      if (r.duty_type === "FULL") dm.f += 1; else dm.h += 1;
+      wm.set(day, dm);
+      tally.set(r.worker_id, wm);
+    }
+
+    const outWorkers: AttendanceMatrixWorker[] = workersRaw.map((w) => {
+      let name = "Unknown";
+      const p = w.profiles;
+      if (Array.isArray(p)) name = p[0]?.name ?? "Unknown";
+      else if (p) name = p.name ?? "Unknown";
+      const wm = tally.get(w.id);
+      const cells: Record<number, AttendanceMatrixCell> = {};
+      for (const d of days) {
+        const dm = wm?.get(d);
+        cells[d] = dm ? cellLabel(dm.f, dm.h) : "A";
+      }
+      return { workerId: w.id, workerName: name, cells };
+    });
+    outWorkers.sort((a, b) => a.workerName.localeCompare(b.workerName));
+
+    return { monthYear, endDate: effectiveEnd, days, workers: outWorkers };
+  } catch (err) {
+    console.error("fetchAttendanceMatrix unexpected error:", err);
+    throw err;
+  }
+}
