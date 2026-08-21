@@ -5,11 +5,11 @@ import {
   fetchMonthlyReport,
   fetchAvailableMonths,
   fetchPayouts,
-  getPaymentStatus,
   type MonthlyReport,
 } from "@/services/report-service";
 import { WorkerSummaryTable } from "@/components/reports/worker-summary-table";
 import { MonthSelector } from "@/components/reports/month-selector";
+import { PayoutForm } from "@/components/reports/payout-form";
 
 export default function ReportsPage() {
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -18,6 +18,12 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [payoutsMap, setPayoutsMap] = useState<Map<string, number>>(new Map());
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [payoutModal, setPayoutModal] = useState<{
+    open: boolean;
+    workerId: string;
+    workerName: string;
+    amount: number;
+  } | null>(null);
 
   // Fetch available months on mount (optional population for selector)
   useEffect(() => {
@@ -69,6 +75,29 @@ export default function ReportsPage() {
     return "PARTIALLY_PAID";
   };
 
+  const handlePayoutClick = (workerId: string, workerName: string, earnings: number) => {
+    setPayoutModal({ open: true, workerId, workerName, amount: earnings });
+  };
+
+  const refreshPayoutsAndReport = async () => {
+    try {
+      const [r, payouts] = await Promise.all([fetchMonthlyReport(monthYear), fetchPayouts(monthYear)]);
+      setReport(r);
+      const m = new Map<string, number>();
+      payouts.forEach((p) => {
+        m.set(p.worker_id, (m.get(p.worker_id) || 0) + p.amount_paid);
+      });
+      setPayoutsMap(m);
+    } catch (err) {
+      console.error("ReportsPage refresh error:", err);
+    }
+  };
+
+  const handlePayoutSuccess = async () => {
+    setPayoutModal(null);
+    await refreshPayoutsAndReport();
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
       <div>
@@ -115,8 +144,33 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <WorkerSummaryTable summaries={summaries} totals={totals} getStatus={getStatus} />
+          <WorkerSummaryTable summaries={summaries} totals={totals} getStatus={getStatus} onPayout={handlePayoutClick} />
         </>
+      )}
+
+      {payoutModal?.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setPayoutModal(null)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Record payout for ${payoutModal.workerName}`}
+          >
+            <PayoutForm
+              workerId={payoutModal.workerId}
+              workerName={payoutModal.workerName}
+              monthYear={monthYear}
+              defaultAmount={payoutModal.amount}
+              onSuccess={handlePayoutSuccess}
+              onCancel={() => setPayoutModal(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

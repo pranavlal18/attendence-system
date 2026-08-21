@@ -11,6 +11,7 @@ export interface WorkerSummaryTableProps {
     totalEarnings: number;
   };
   getStatus?: (workerId: string, earnings: number) => string;
+  onPayout?: (workerId: string, workerName: string, earnings: number) => void;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -22,7 +23,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`${base} ${cls}`}>{status}</span>;
 }
 
-export function WorkerSummaryTable({ summaries, totals, getStatus }: WorkerSummaryTableProps) {
+export function WorkerSummaryTable({ summaries, totals, getStatus, onPayout }: WorkerSummaryTableProps) {
   if (summaries.length === 0) {
     return (
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -36,6 +37,7 @@ export function WorkerSummaryTable({ summaries, totals, getStatus }: WorkerSumma
                 <th className="px-4 py-3 text-center">Total</th>
                 <th className="px-4 py-3 text-right">Earnings (₹)</th>
                 {getStatus && <th className="px-4 py-3 text-center">Status</th>}
+                {onPayout && <th className="px-4 py-3 text-center">Action</th>}
               </tr>
             </thead>
           </table>
@@ -73,6 +75,7 @@ export function WorkerSummaryTable({ summaries, totals, getStatus }: WorkerSumma
               <th className="px-4 py-3 text-center">Total</th>
               <th className="px-4 py-3 text-right">Earnings (₹)</th>
               {getStatus && <th className="px-4 py-3 text-center">Status</th>}
+              {onPayout && <th className="px-4 py-3 text-center">Action</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -97,6 +100,19 @@ export function WorkerSummaryTable({ summaries, totals, getStatus }: WorkerSumma
                       {status ? <StatusBadge status={status} /> : <span className="text-xs text-zinc-400">-</span>}
                     </td>
                   )}
+                  {onPayout && (
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => onPayout(s.workerId, s.workerName, s.earnings)}
+                        disabled={s.earnings <= 0}
+                        title={s.earnings <= 0 ? "No earnings to pay" : `Record payout for ${s.workerName}`}
+                        className="inline-flex min-h-[32px] items-center justify-center rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                      >
+                        Pay
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -109,6 +125,7 @@ export function WorkerSummaryTable({ summaries, totals, getStatus }: WorkerSumma
               <td className="px-4 py-3 text-center">{totals.totalCount}</td>
               <td className="px-4 py-3 text-right">₹{totals.totalEarnings.toLocaleString()}</td>
               {getStatus && <td className="px-4 py-3" />}
+              {onPayout && <td className="px-4 py-3" />}
             </tr>
           </tfoot>
         </table>
