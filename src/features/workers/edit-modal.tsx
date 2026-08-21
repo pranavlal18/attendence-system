@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as zod from 'zod';
-import { workerSchema } from '@/schemas/worker';
+import { workerEditSchema } from '@/schemas/worker';
 import { Input } from '@/components/ui/input';
 import { logAction } from '@/lib/audit-logger';
 
@@ -29,18 +29,17 @@ export const WorkerEditModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
-  const { register, handleSubmit, reset } = useForm<zod.infer<typeof workerSchema>>({
-    resolver: zodResolver(workerSchema) as any,
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<zod.infer<typeof workerEditSchema>>({
+    resolver: zodResolver(workerEditSchema) as any,
     defaultValues: {
       name: worker.name,
-      email: worker.email,
       full_duty_rate: worker.full_duty_rate,
       half_duty_rate: worker.half_duty_rate,
       is_active: worker.is_active,
     },
   });
 
-  const onSubmit = async (data: zod.infer<typeof workerSchema>) => {
+  const onSubmit = async (data: zod.infer<typeof workerEditSchema>) => {
     setIsSaving(true);
     setErrorMsg(null);
     try {
@@ -148,6 +147,7 @@ export const WorkerEditModal = ({
               defaultValue={worker.name}
               className="w-full border border-zinc-300 dark:border-zinc-600 rounded px-3 py-2"
             />
+            {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">Email</label>
@@ -169,6 +169,7 @@ export const WorkerEditModal = ({
               defaultValue={worker.full_duty_rate}
               className="w-full border border-zinc-300 dark:border-zinc-600 rounded px-3 py-2"
             />
+            {errors.full_duty_rate && <p className="mt-1 text-xs text-red-600">{errors.full_duty_rate.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">Half Duty Rate</label>
@@ -179,6 +180,7 @@ export const WorkerEditModal = ({
               defaultValue={worker.half_duty_rate}
               className="w-full border border-zinc-300 dark:border-zinc-600 rounded px-3 py-2"
             />
+            {errors.half_duty_rate && <p className="mt-1 text-xs text-red-600">{errors.half_duty_rate.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">New Password</label>

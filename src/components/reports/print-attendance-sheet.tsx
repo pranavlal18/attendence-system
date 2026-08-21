@@ -78,10 +78,6 @@ export function PrintAttendanceSheet({ monthYear }: Props) {
           className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:hover:bg-zinc-700">
           {loading ? "Loading…" : "Load Sheet"}
         </button>
-        <button type="button" onClick={() => window.print()} disabled={!matrix}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900">
-          Print
-        </button>
         <button type="button" onClick={downloadPdf} disabled={!matrix || pdfGenerating}
           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {pdfGenerating ? "Generating…" : "Download PDF"}

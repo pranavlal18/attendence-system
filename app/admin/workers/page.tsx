@@ -57,7 +57,21 @@ export default function AdminWorkersPage() {
       return;
     }
 
-    setWorkers((res.data as unknown as Worker[]) || []);
+    // Flatten nested profiles into name/email so consumers (edit modal) get flat fields
+    type RawRow = {
+      profiles?: { name: string; email: string } | Array<{ name: string; email: string }> | null;
+    } & Record<string, unknown>;
+    const flattened = ((res.data as unknown as RawRow[]) || []).map((row) => {
+      const p = row.profiles;
+      const profile = Array.isArray(p) ? p[0] : p;
+      return {
+        ...row,
+        name: profile?.name ?? '',
+        email: profile?.email ?? '',
+      };
+    });
+
+    setWorkers((flattened as unknown as Worker[]) || []);
   };
 
   useEffect(() => {
